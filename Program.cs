@@ -57,7 +57,7 @@ class Program
                     if (block.Insert is string text)
                     {
                         string[] parts = text.Split('\n');
-                        
+
                         for (int i = 0; i < parts.Length; i++)
                         {
                             if (!string.IsNullOrEmpty(parts[i]))
@@ -68,6 +68,13 @@ class Program
 
                             if (i < parts.Length - 1) // If there was a newline
                             {
+
+                                // Apply alignment to the current paragraph before adding it to the document
+                                if (block.Attributes != null && !string.IsNullOrEmpty(block.Attributes.Align))
+                                {
+                                    ApplyAlignment(currentParagraph, block.Attributes.Align);
+                                }
+
                                 document.Add(currentParagraph);
                                 currentParagraph = new Paragraph();
                             }
@@ -142,14 +149,6 @@ class Program
         if (!string.IsNullOrEmpty(attributes.Background))
             p.SetBackgroundColor(ConvertColor(attributes.Background));
 
-        // Text Alignment
-        switch (attributes.Align?.ToLower())
-        {
-            case "center": p.SetTextAlignment(TextAlignment.CENTER); break;
-            case "right": p.SetTextAlignment(TextAlignment.RIGHT); break;
-            case "justify": p.SetTextAlignment(TextAlignment.JUSTIFIED); break;
-            default: p.SetTextAlignment(TextAlignment.LEFT); break;
-        }
     }
 
     static (string Text, string Icon) ExtractTextFromNonTextElement(JObject obj)
@@ -186,6 +185,19 @@ class Program
 
         return new DeviceRgb(r, g, b);
     }
+
+
+    // Method to apply alignment to a paragraph
+    static void ApplyAlignment(Paragraph p, string align)
+    {
+        switch (align.ToLower())
+        {
+            case "center": p.SetTextAlignment(TextAlignment.CENTER); break;
+            case "right": p.SetTextAlignment(TextAlignment.RIGHT); break;
+            case "justify": p.SetTextAlignment(TextAlignment.JUSTIFIED); break;
+            default: p.SetTextAlignment(TextAlignment.LEFT); break;
+        }
+    }
 }
 
 // Classes for JSON Parsing
@@ -214,4 +226,8 @@ class Attributes
     public float Size { get; set; }
     public string Background { get; set; }
     public string Align { get; set; }
+
+    public string List { get; set; }
 }
+
+
