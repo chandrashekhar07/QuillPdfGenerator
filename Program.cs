@@ -10,6 +10,7 @@ using iText.Layout.Properties;
 using iText.Kernel.Colors;
 using iText.Kernel.Font;
 using iText.IO.Font.Constants;
+using iText.IO.Image;
 
 class Program
 {
@@ -22,41 +23,87 @@ class Program
         {
             // Read the JSON file
             string jsonContent = File.ReadAllText(jsonPath);
-            QuillDocument quillDoc = JsonConvert.DeserializeObject<QuillDocument>(jsonContent);
+            QuillDocument quillDoc = JsonConvert.DeserializeObject<QuillDocument>(jsonContent) ?? new QuillDocument { Content = [] };
 
             // Create a PDF
             using (PdfWriter writer = new PdfWriter(outputPdfPath))
             {
-                using (PdfDocument pdf = new PdfDocument(writer))
-                {
-                    Document document = new Document(pdf);
+                using PdfDocument pdf = new PdfDocument(writer);
+                Document document = new Document(pdf);
 
-                    // Iterate over Quill content
-                    foreach (var block in quillDoc.Content)
+
+                // Add Title
+                document.Add(new Paragraph("Title " + quillDoc.Title)
+                    .SetFontSize(18)
+                    .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD)));
+
+                // Add Presenter
+                document.Add(new Paragraph("Presenter: " + quillDoc.Presenter)
+                    .SetFontSize(14)
+                    .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD)));
+
+                // Add Summary
+                document.Add(new Paragraph("Summary: " + quillDoc.Summary)
+                    .SetFontSize(12));
+
+                // Add a new line
+                document.Add(new Paragraph());
+
+                Paragraph currentParagraph = new Paragraph();
+
+                // Iterate over Quill content
+                foreach (var block in quillDoc.Content)
+                {
+                    if (block.Insert is string text)
                     {
-                        if (block.Insert is string text)
+                        string[] parts = text.Split('\n');
+                        
+                        for (int i = 0; i < parts.Length; i++)
                         {
-                            Paragraph p = new Paragraph(text);
-                            ApplyFormatting(p, block.Attributes);
-                            document.Add(p);
-                        }
-                        else if (block.Insert is JObject obj)
-                        {
-                            string extractedText = ExtractTextFromNonTextElement(obj);
-                            if (!string.IsNullOrEmpty(extractedText))
+                            if (!string.IsNullOrEmpty(parts[i]))
                             {
-                                Paragraph p = new Paragraph(extractedText).SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_OBLIQUE));
-                                document.Add(p);
+                                currentParagraph.Add(parts[i]);
+                                ApplyFormatting(currentParagraph, block.Attributes);
                             }
-                        }
-                        else
-                        {
-                            Console.WriteLine("❌ Unsupported Block Type: " + block.Insert.GetType());
+
+                            if (i < parts.Length - 1) // If there was a newline
+                            {
+                                document.Add(currentParagraph);
+                                currentParagraph = new Paragraph();
+                            }
                         }
                     }
 
-                    document.Close();
+
+                    else if (block.Insert is JObject obj)
+                    {
+                        var (extractedText, icon) = ExtractTextFromNonTextElement(obj);
+                        if (!string.IsNullOrEmpty(extractedText))
+                        {
+                            Paragraph p = new Paragraph();
+
+                            // Add the icon first, if available
+                            if (!string.IsNullOrEmpty(icon))
+                            {
+                                Image img = new Image(ImageDataFactory.Create(icon));
+                                img.ScaleToFit(20f, 20f); // Adjust image size as needed
+                                p.Add(img);
+                            }
+
+                            // Add the extracted text
+                            p.Add(new Text(extractedText).SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_OBLIQUE)));
+
+                            document.Add(p);
+                        }
+                    }
+
+                    else
+                    {
+                        Console.WriteLine("❌ Unsupported Block Type: " + block.Insert.GetType());
+                    }
                 }
+
+                document.Close();
             }
 
             Console.WriteLine("✅ PDF Generated Successfully: " + outputPdfPath);
@@ -69,17 +116,34 @@ class Program
 
     static void ApplyFormatting(Paragraph p, Attributes attributes)
     {
+
         if (attributes == null) return;
 
-        // Font Styles
-        if (attributes.Bold) p.SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD));
-        if (attributes.Italic) p.SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_OBLIQUE));
-        if (attributes.Underline) p.SetUnderline();
-        if (attributes.Size > 0) p.SetFontSize(attributes.Size);
-        if (!string.IsNullOrEmpty(attributes.Background)) p.SetBackgroundColor(ConvertColor(attributes.Background));
+        // Font Style Handling
+        PdfFont font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
+        if (attributes.Bold && attributes.Italic)
+            font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLDOBLIQUE);
+        else if (attributes.Bold)
+            font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
+        else if (attributes.Italic)
+            font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_OBLIQUE);
 
-        // Alignment
-        switch (attributes.Align)
+        p.SetFont(font);
+
+        // Underline
+        if (attributes.Underline)
+            p.SetUnderline();
+
+        // Font Size
+        if (attributes.Size > 0)
+            p.SetFontSize(attributes.Size);
+
+        // Background Color
+        if (!string.IsNullOrEmpty(attributes.Background))
+            p.SetBackgroundColor(ConvertColor(attributes.Background));
+
+        // Text Alignment
+        switch (attributes.Align?.ToLower())
         {
             case "center": p.SetTextAlignment(TextAlignment.CENTER); break;
             case "right": p.SetTextAlignment(TextAlignment.RIGHT); break;
@@ -88,22 +152,28 @@ class Program
         }
     }
 
-    static string ExtractTextFromNonTextElement(JObject obj)
+    static (string Text, string Icon) ExtractTextFromNonTextElement(JObject obj)
     {
         if (obj.ContainsKey("notes"))
-            return obj["notes"]["entity"]["text"]?.ToString() ?? "";
+            return (obj["notes"]?["entity"]?["text"]?.ToString() ?? "", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for notes
 
         if (obj.ContainsKey("bookmarks"))
-            return obj["bookmarks"]["entity"]["text"]?.ToString() ?? "";
+            return (obj["bookmarks"]?["entity"]?["text"]?.ToString() ?? "", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for bookmarks
 
         if (obj.ContainsKey("highlights"))
-            return obj["highlights"]["entity"]["selected"]?.ToString() ?? "";
+        {
+            string bookCode = obj["highlights"]?["publication"]?["code"]?.ToString() ?? "";
+            string paragraphId = obj["highlights"]?["entity"]?["range"]?["range"]?.ToString().Split("-")[0] ?? "";
+
+            return (bookCode + " " + paragraphId, "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for highlights
+        }
 
         if (obj.ContainsKey("verse"))
-            return "[Verse: " + obj["verse"]["id"]?.ToString() + "]";
+            return ("[Verse: " + obj["verse"]?["id"]?.ToString() + "]", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for verse
 
-        return "";
+        return ("", ""); // Default return if no match
     }
+
 
     static DeviceRgb ConvertColor(string hexColor)
     {
@@ -122,6 +192,12 @@ class Program
 class QuillDocument
 {
     public List<QuillBlock> Content { get; set; }
+
+    public string Title { get; set; }
+
+    public string Presenter { get; set; }
+
+    public string Summary { get; set; }
 }
 
 class QuillBlock

@@ -14,7 +14,7 @@
                         "paraId": "6.11",
                         "position": 102,
                         "publicationId": 6,
-                        "text": "hello world"
+                        "text": "hello world this is note text"
                     },
                     "id": "a71b4bb6-a82a-469b-bf65-6e94bce1d57d",
                     "chapterId": "6.2",
@@ -36,7 +36,7 @@
                         "paraId": "130.11",
                         "position": 0,
                         "publicationId": 130,
-                        "text": "Testt this is tsst"
+                        "text": "This is bookmarks testing"
                     },
                     "id": "5f59108b-13a9-404f-ae9e-3e46e4bc5e44",
                     "chapterId": "130.4",
@@ -62,7 +62,8 @@
                     "publicationId": 98,
                     "entityType": "HIGHLIGHT",
                     "publication": {
-                        "title": "Selected Messages Book 1"
+                        "title": "Selected Messages Book 1",
+                        "code": "1SM"
                     },
                     "entity": {
                         "selected": "Manuscripts",
@@ -250,7 +251,7 @@
             }
         },
         {
-            "insert": "\n\n"
+            "insert": "\n\n\n\n\n"
         },
         {
             "insert": "B",
