@@ -118,6 +118,7 @@ class Program
         catch (Exception ex)
         {
             Console.WriteLine("❌ Error: " + ex.Message);
+            Console.WriteLine("❌ Stack Trace: " + ex.StackTrace);
         }
     }
 
@@ -153,16 +154,16 @@ class Program
 
     static (string Text, string Icon) ExtractTextFromNonTextElement(JObject obj)
     {
-        if (obj.ContainsKey("notes"))
-            return (obj["notes"]?["entity"]?["text"]?.ToString() ?? "", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for notes
+        if (obj.ContainsKey("notes") && obj["notes"] is JObject notes)
+            return (notes["entity"]?["text"]?.ToString() ?? "", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for notes
 
-        if (obj.ContainsKey("bookmarks"))
-            return (obj["bookmarks"]?["entity"]?["text"]?.ToString() ?? "", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for bookmarks
+        if (obj.ContainsKey("bookmarks") && obj["bookmarks"] is JObject bookmarks)
+            return (bookmarks["entity"]?["text"]?.ToString() ?? "", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for bookmarks
 
-        if (obj.ContainsKey("highlights"))
+        if (obj.ContainsKey("highlights") && obj["highlights"] is JObject highlights)
         {
-            string bookCode = obj["highlights"]?["publication"]?["code"]?.ToString() ?? "";
-            string paragraphId = obj["highlights"]?["entity"]?["range"]?["range"]?.ToString().Split("-")[0] ?? "";
+            string bookCode = highlights["publication"]?["code"]?.ToString() ?? "";
+            string paragraphId = highlights["entity"]?["range"]?["range"]?.ToString().Split("-")[0] ?? "";
 
             return (bookCode + " " + paragraphId, "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for highlights
         }
