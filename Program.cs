@@ -11,6 +11,7 @@ using iText.Kernel.Colors;
 using iText.Kernel.Font;
 using iText.IO.Font.Constants;
 using iText.IO.Image;
+using iText.Kernel.Pdf.Action;
 
 class Program
 {
@@ -66,7 +67,8 @@ class Program
                                 ApplyFormatting(currentParagraph, block.Attributes);
                             }
 
-                            if (i < parts.Length - 1) // If there was a newline
+                            // If there was a newline
+                            if (i < parts.Length - 1 || parts.Length == 1)
                             {
 
                                 // Apply alignment to the current paragraph before adding it to the document
@@ -78,13 +80,14 @@ class Program
                                 document.Add(currentParagraph);
                                 currentParagraph = new Paragraph();
                             }
+
                         }
                     }
 
 
                     else if (block.Insert is JObject obj)
                     {
-                        var (extractedText, icon) = ExtractTextFromNonTextElement(obj);
+                        var (extractedText, paragraphCode, icon) = ExtractTextFromNonTextElement(obj);
                         if (!string.IsNullOrEmpty(extractedText))
                         {
                             Paragraph p = new Paragraph();
@@ -99,6 +102,18 @@ class Program
 
                             // Add the extracted text
                             p.Add(new Text(extractedText).SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_OBLIQUE)));
+
+                            // Display the paragraphCode and make it a clickable link (only the paragraphCode is clickable not the whole line/paragraphs)
+                            // paragraphCode should be at the last of the paragraph, underlined and clickable to external URL, with blue color
+                            if (!string.IsNullOrEmpty(paragraphCode))
+                            {
+                                p.Add(new Text(paragraphCode)
+                                    .SetUnderline()
+                                    .SetAction(PdfAction.CreateURI("https://example.com/" + paragraphCode))
+                                    .SetFont(PdfFontFactory.CreateFont(StandardFonts.HELVETICA_OBLIQUE))
+                                    .SetFontColor(ColorConstants.BLUE));
+                            }
+
 
                             document.Add(p);
                         }
@@ -152,26 +167,39 @@ class Program
 
     }
 
-    static (string Text, string Icon) ExtractTextFromNonTextElement(JObject obj)
+    static (string Text, string paragraphReference, string Icon) ExtractTextFromNonTextElement(JObject obj)
     {
         if (obj.ContainsKey("notes") && obj["notes"] is JObject notes)
-            return (notes["entity"]?["text"]?.ToString() ?? "", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for notes
+        {
+            string bookCode = notes["publication"]?["code"]?.ToString() ?? "";
+            string paragraphId = notes["entity"]?["paraId"]?.ToString() ?? "";
+            string selectedText = notes["entity"]?["text"]?.ToString() ?? "";
+
+            return (selectedText + " ", bookCode + " " + paragraphId, ""); // Example icon for notes
+        }
 
         if (obj.ContainsKey("bookmarks") && obj["bookmarks"] is JObject bookmarks)
-            return (bookmarks["entity"]?["text"]?.ToString() ?? "", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for bookmarks
+        {
+            string bookCode = bookmarks["publication"]?["code"]?.ToString() ?? "";
+            string paragraphId = bookmarks["entity"]?["paraId"]?.ToString() ?? "";
+            string selectedText = bookmarks["entity"]?["text"]?.ToString() ?? "";
+
+            return (selectedText + " ", bookCode + " " + paragraphId, ""); // Example icon for bookmarks
+        }
 
         if (obj.ContainsKey("highlights") && obj["highlights"] is JObject highlights)
         {
             string bookCode = highlights["publication"]?["code"]?.ToString() ?? "";
             string paragraphId = highlights["entity"]?["range"]?["range"]?.ToString().Split("-")[0] ?? "";
+            string selectedText = highlights["entity"]?["selected"]?.ToString() ?? "";
 
-            return (bookCode + " " + paragraphId, "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for highlights
+            return (selectedText + " ", bookCode + " " + paragraphId, ""); // Example icon for highlights
         }
 
         if (obj.ContainsKey("verse"))
-            return ("[Verse: " + obj["verse"]?["id"]?.ToString() + "]", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for verse
+            return ("[Verse: " + obj["verse"]?["id"]?.ToString() + "]", " ", "https://static-00.iconduck.com/assets.00/404-page-not-found-illustration-512x249-ju1c9yxg.png"); // Example icon for verse
 
-        return ("", ""); // Default return if no match
+        return ("", "", ""); // Default return if no match
     }
 
 
